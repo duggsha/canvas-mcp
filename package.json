@@ -1,0 +1,31 @@
+{
+  "name": "@duggai/canvas-mcp",
+  "version": "0.1.0",
+  "description": "Read Canvas assignments, rubrics, syllabus and submission status from your AI assistant.",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
+  "bin": {
+    "dugg-canvas-mcp": "src/stdio.mjs"
+  },
+  "exports": {
+    ".": "./src/core.mjs",
+    "./server": "./src/server.mjs",
+    "./transport": "./src/transport.mjs"
+  },
+  "files": [
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "start": "node src/stdio.mjs",
+    "test": "node --test test/*.test.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.31.0",
+    "zod": "3.25.76"
+  }
+}
