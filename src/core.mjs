@@ -1,3 +1,5 @@
+import { createOverview } from './overview.mjs';
+import { workStatus } from './work-status.mjs';
 /** Canvas data is untrusted source material. Tools expose reads, never actions. */
 export class CanvasError extends Error {
   constructor(message, status = 500) { super(message); this.status = status; }
@@ -34,11 +36,11 @@ function assignment(row) {
 export function createCanvasClient({ origin, token, fetchImpl = fetch }) {
   const base = canvasOrigin(origin);
   if (!token || /[\r\n]/.test(token)) throw new CanvasError('Canvas authorization is missing.', 401);
-  async function request(path, params = {}) {
+  async function request(path, params = {}, timeoutMs = 15000) {
     if (!path.startsWith('/api/v1/')) throw new CanvasError('Unsupported Canvas endpoint.',400);
     const url = new URL(path, base);
     for (const [key,value] of Object.entries(params)) if (value != null) for (const entry of Array.isArray(value) ? value : [value]) url.searchParams.append(key, String(entry));
-    const response = await fetchImpl(url, { headers:{ Authorization:`Bearer ${token}`, Accept:'application/json' }, redirect:'error', signal:AbortSignal.timeout(15000), cache:'no-store' });
+    const response = await fetchImpl(url, { headers:{ Authorization:`Bearer ${token}`, Accept:'application/json' }, redirect:'error', signal:AbortSignal.timeout(timeoutMs), cache:'no-store' });
     if (!response.ok) {
       const messages = {401:'Canvas access expired. Reconnect your school.',403:'Your school has not allowed access to this material.',404:'Canvas could not find this item.',429:'Canvas is busy. Wait a moment before trying again.'};
       throw new CanvasError(messages[response.status] ?? 'Canvas could not complete this request.', response.status);
@@ -47,8 +49,17 @@ export function createCanvasClient({ origin, token, fetchImpl = fetch }) {
   }
   const envelope = (r, data, page) => ({ data, checkedAt:r.checkedAt, source:r.source, ...(page ? {page, nextPage:r.hasMore?page+1:null} : {}), sourceType:'Canvas API', contentIsUntrusted:true });
   return {
+    get_study_overview: createOverview({ request, text, id, pageNumber, base }),
     async list_courses({page=1}={}) { pageNumber(page); const r=await request('/api/v1/courses',{enrollment_state:'active',per_page:30,page}); return envelope(r,r.data.map(c=>pick(c,['id','name','course_code','workflow_state','time_zone'])),page); },
     async list_assignments({courseId,page=1}) { id(courseId);pageNumber(page); const r=await request(`/api/v1/courses/${courseId}/assignments`,{per_page:20,page,'include[]':['submission'],'order_by':'due_at'}); return envelope(r,r.data.map(assignment),page); },
+    async get_course_work_status({courseId,page=1}) {
+      id(courseId); pageNumber(page);
+      const r = await request(`/api/v1/courses/${courseId}/assignments`, {per_page:50,page,'include[]':'submission',order_by:'due_at'});
+      return {...envelope(r,r.data.map(row => workStatus(row,base,courseId)),page),
+        coverage: { scope:'this_page', assignmentsChecked:r.data.length, allPagesReadRequired:true },
+        courseGrade: { value:null, reason:'This tool checks assignment evidence, not a course average. A course average cannot prove that no work is missing.' },
+        guidance:'Follow nextPage until null before claiming a complete check. Report every explicit missing flag and every non-excused zero score, even if workflow_state is graded or submitted. A zero score is not by itself proof of missing work. Null means unknown, never zero or full credit. Do not infer an overall grade from this page. Paper, external-tool, excused and hidden grades need their own interpretation. Open get_assignment_context for instructions and teacher feedback context.'};
+    },
     async get_assignment_context({courseId,assignmentId}) {
       id(courseId);id(assignmentId);
       const [a,c] = await Promise.all([request(`/api/v1/courses/${courseId}/assignments/${assignmentId}`,{'include[]':'submission'}),request(`/api/v1/courses/${courseId}`,{'include[]':'syllabus_body'}).catch(error=>({error:error.message}))]);

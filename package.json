@@ -1,6 +1,6 @@
 {
   "name": "@duggai/canvas-mcp",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "description": "Read Canvas assignments, rubrics, syllabus and submission status from your AI assistant.",
   "type": "module",
   "license": "MIT",

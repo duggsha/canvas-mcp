@@ -1,4 +1,4 @@
-# Dugg Canvas MCP
+# CanvasPlugin MCP
 
 A small, read-only Canvas server for an MCP-compatible assistant. MIT licensed.
 No Dugg subscription, telemetry or model API is needed to run the local edition.
@@ -34,16 +34,18 @@ Use your client's secure credential storage where available. Restart the client,
 
 ## Hosted edition
 
-[Hosted setup](https://www.duggai.com/canvas-mcp) uses separate Dugg authorization, school access checks and subscription controls. The remote endpoint is `https://www.duggai.com/api/canvas-mcp/mcp`. Availability depends on the school and assistant; a public app-directory listing is not implied.
+[Hosted setup](https://www.duggai.com/canvas) uses separate Dugg authorization, school access checks and subscription controls. The remote endpoint is `https://www.duggai.com/api/canvas-mcp/mcp`. Availability depends on the school and assistant; a public app-directory listing is not implied.
 
 This repository is the **local single-user core**, not a turnkey multi-tenant billing or authentication service. Do not expose stdio over an unauthenticated HTTP bridge. Do not collect other people's personal tokens. Canvas requires OAuth for multi-user API integrations; school/global developer-key approval is separate from a successful browser login. See [Canvas OAuth documentation](https://canvas.instructure.com/doc/api/file.oauth.html).
 
-## Eight tools
+## Ten tools
 
 | Tool | Reads |
 | --- | --- |
+| `get_study_overview` | Course orientation, syllabus excerpts and upcoming/overdue assignment previews |
 | `list_courses` | Active courses, with pagination |
 | `list_assignments` | Due/lock dates and your submission state |
+| `get_course_work_status` | Assignment scores, graded zeros, missing flags and excused status |
 | `get_assignment_context` | Assignment, rubric, submission and syllabus together |
 | `get_syllabus` | Syllabus and course timezone |
 | `list_modules` | Modules, prerequisites and availability |
@@ -64,3 +66,13 @@ npm test
 ```
 
 Tests use synthetic Canvas responses and official MCP transports; they do not use student data. Report vulnerabilities privately to support@duggai.com. Revoke your token in Canvas when you stop using this server.
+
+## Start with context
+
+`get_study_overview` is the suggested first call for a new schoolwork conversation. It returns up to six active classes per page, each with a syllabus excerpt (up to 1,600 characters), three upcoming assignments and two overdue assignments. Follow `nextPage` for additional classes. Read the complete syllabus before answering policy questions; open assignment context for the rubric and instructions. Missing and inaccessible sources remain explicit. Undated work and external attachments are not included in the overview.
+
+This is fresh, deterministic retrieval, with no model API charge. At most 13 Canvas requests run per overview page, with six assignment requests in flight and a six-second timeout per request. A hosted overview counts as one tool call; its upstream reads are bounded separately. Other tools retain their existing timeouts.
+
+The server gives the assistant first-call guidance; the host chooses which tools to call. This does not inject data into every new chat, guarantee the assistant follows the guidance, or create permanent model memory. There is no background sync or cross-request context cache in this release. Reuse recent context within a conversation and fetch current deadlines/submission status when needed.
+
+For missing-work questions, use `get_course_work_status` through every page. A graded 0/10 may be absent from upcoming/overdue previews. A course average of 100% is not evidence that all assignments are complete. The tool preserves zero, unknown and excused states separately and never calculates a course average.

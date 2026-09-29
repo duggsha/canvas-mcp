@@ -12,6 +12,6 @@ test('stateless HTTP initialization, listing and calls survive server cleanup',a
   await server.close();return {status:response.status,body:await response.json()};
  }
  const init=await request('initialize',{protocolVersion:'2025-03-26',clientInfo:{name:'test',version:'1'},capabilities:{}});assert.equal(init.status,200);assert.equal(init.body.result.serverInfo.name,'dugg-canvas');
- const listing=await request('tools/list',{});assert.equal(listing.body.result.tools.length,8);
+ const listing=await request('tools/list',{});assert.equal(listing.body.result.tools.length,10);
  const result=await request('tools/call',{name:'list_courses',arguments:{}});assert.match(result.body.result.content[0].text,/Synthetic class/);
 });
